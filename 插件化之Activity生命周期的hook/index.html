@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta http-equiv="content-type" content="text/html; charset=utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="description" content="一个Android开发者的成长记录"><title>插件化之Activity生命周期的hook | chenlong's</title><link rel="stylesheet" type="text/css" href="/css/style.css?v=0.0.0"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/normalize/7.0.0/normalize.min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/pure-min.css"><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/pure/1.0.0/grids-responsive-min.css"><link rel="stylesheet" href="//cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css"><script type="text/javascript" src="//cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script><link rel="Shortcut Icon" type="image/x-icon" href="/favicon.ico"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png"><script>var _hmt = _hmt || [];
+(function() {
+var hm = document.createElement("script");
+hm.src = "https://hm.baidu.com/hm.js?c429fdd6ac00b6f7e59c44c7b27894b8";
+var s = document.getElementsByTagName("script")[0]; 
+s.parentNode.insertBefore(hm, s);
+})();</script></head><body><div class="body_container"><div id="header"><div class="site-name"><h1 class="hidden">插件化之Activity生命周期的hook</h1><a id="logo" href="/.">chenlong's</a><p class="description">Android开发技术博客</p></div><div id="nav-menu"><a href="/." class="current"><i class="fa fa-home"> 首页</i></a><a href="/archives/"><i class="fa fa-archive"> 全部</i></a></div></div><div id="layout" class="pure-g"><div class="pure-u-1 pure-u-md-3-4"><div class="content_container"><div class="post"><h1 class="post-title">插件化之Activity生命周期的hook</h1><div class="post-meta">Oct 3, 2016<span> | </span><span class="category"><a href="/categories/插件化/">插件化</a></span></div><div class="post-content"><h1 id="Activity生命周期Hook"><a href="#Activity生命周期Hook" class="headerlink" title="Activity生命周期Hook"></a>Activity生命周期Hook</h1><h2 id="为什么要hook"><a href="#为什么要hook" class="headerlink" title="为什么要hook"></a>为什么要hook</h2><p>每个Android工程师都会碰到的一次crash，Activity没有在清单文件中声明。<br><img src="http://i2.muimg.com/567571/f5ee50ad907a3655.png" alt=""><br>我们根据异常栈简单的撸一下代码。</p>
+<p><strong>Step 1</strong><br><img src="http://i1.piimg.com/567571/59c1ea788884ba12.png" alt=""></p>
+<p>Activity的启动被委托到Instrumentation上。mInstrumentation这个实例是在ActivityThread启动时创建的，整个进程只有一个实例。</p>
+<p><strong>Step 2</strong><br><img src="http://i1.piimg.com/567571/aae746a2b6191f71.png" alt=""></p>
+<ol>
+<li><p>IApplicationThread是什么？<br>首先需要理解一下Binder，看Binder的笔记<br>它是一个Binder，用来和AmS进行通信。</p>
+</li>
+<li><p>这是一次Binder通信，从ServiceManager获取AmS的Binder，注意这是在应用进程中调用，获取的是AmS的remote对象，也就是ActivityManagerProxy的实例。调用startActivity方法通知AmS需要启动Activity</p>
+</li>
+<li><p>检查返回值<br><img src="http://i4.buimg.com/567571/69a67f13a74f0a6c.png" alt=""></p>
+</li>
+</ol>
+<h2 id="Activity的启动流程"><a href="#Activity的启动流程" class="headerlink" title="Activity的启动流程"></a>Activity的启动流程</h2><p>刚刚我们撸了一下客户端侧的启动代码，接下来我们再简单撸一下AmS的启动Activity的流程，注意，我们跳过了很多重要机制的实现细节，只关注核心流程。</p>
+<p>入口：<br>注意这方法的参数列表中除了IApplicationThread作为调用方的Binder proxy外，还有一个IBinder类型的参数，resultTo，这个参数是Activity 创建时被赋值到Activity的mToken变量中的，用来标记这个Activity<br><img src="http://i1.piimg.com/567571/7e757303ab19851c.png" alt=""></p>
+<p><img src="http://i1.piimg.com/567571/d0e02ce5093e09e1.png" alt=""></p>
+<p>startActivityMayWait方法：</p>
+<p>查询信息<br><img src="http://i1.piimg.com/567571/3ca634218dc2fe45.png" alt=""><br>想PackageManager查询Activity信息<br><img src="http://i1.piimg.com/567571/b450ce35d8412c74.png" alt=""></p>
+<p>方法跳转<br><img src="http://i1.piimg.com/567571/917c1514214c7d00.png" alt=""><br>根据caller在AmS中查询ProcessRecord实例，callApp<br>根据resultTo在ActivityStack中获取SourceRecord实例，sourceRecord<br>创建将要启动的Activity的ActivityRecord实例<br><img src="http://i1.piimg.com/567571/eea77748c4b8590b.png" alt=""><br>方法跳转，注意此时已经创建ActivityRecord实例<br><img src="http://i1.piimg.com/567571/e3276b5d259139c6.png" alt=""><br>处理Activity的启动模式<br><img src="http://i4.buimg.com/567571/d13da5e6e6c7a4b4.png" alt=""><br>在指定的ActivityStack中启动<br><img src="http://i1.piimg.com/567571/43aa3ab4361cf56e.png" alt=""></p>
+<p>在ActivityStack中经过一系列的跳转之后。注意启动一个Activity并不是ActivityThread和AmS进行一次通信就可以了，比如，通常情况下，需要先执行当前栈顶上的Activity 的onPause方法，然后再执行目标Activity的onCreate。多次通信都是异步过程，通过Binder来通信。</p>
+<p>先查一下当前有没有进程能够承载这个Activity，没有的话先创建。<br><img src="http://i1.piimg.com/567571/78049c2113f8d943.png" alt=""><br>回调ApplicationThread的接口<br><img src="http://i1.piimg.com/567571/5236ae44c72a01b2.png" alt=""><br><img src="http://i2.muimg.com/567571/fb030e118f96aad5.png" alt=""><br><img src="http://i2.muimg.com/567571/86f531d54396b96f.png" alt=""><br><img src="http://i2.muimg.com/567571/f9a818bd32e44036.png" alt=""></p>
+<p>初始化ComponentName，由于Activity的启动不仅仅可以通过制定class名字来进行，也可以通过规则匹配<br><img src="http://i2.muimg.com/567571/152569893770d2a5.png" alt=""><br><img src="http://i1.piimg.com/567571/93513c84662c7dc3.png" alt=""></p>
+<h2 id="在哪里hook？"><a href="#在哪里hook？" class="headerlink" title="在哪里hook？"></a>在哪里hook？</h2><p>我们总结一些Activity的启动流程</p>
+<ol>
+<li>ActivityThread负责向AmS申请启动一个Activity，AmS查询packageManager获取Activity的信息，并创建一个ActivityRecord实例记录这个Activity。</li>
+<li>AmS处理完Activity栈，task，进程等事情之后回调ActivityThread的方法，准备启动Activity，此时返回给AT的包括两个重要对象，Token和ActivityInfo，用来标记这个Activity以及描述这个Activity的信息。</li>
+<li>AT根据ActivityInfo的信息实例化对应的Activity子类，并创建Context，同时将Token和Context与这个实例化的Activity子类绑定。</li>
+<li>开始Activity的生命周期</li>
+</ol>
+<p>那么问题的关键是如何让AmS能够获取一个没有在清单文件中声明的Activity的信息。</p>
+<p>在清单文件中声明一个占位的Activity。</p>
+<p>如何让这个占位的Activity变成我们想要的Activity呢？</p>
+<p>方案一：<br>重载Instrumentation的newActivity方法，返回我们需要的实例。<br>方案二：<br>拦截H类的消息，替换ActivityClientRecord中的ActivityInfo实例。</p>
+</div><div class="tags"></div><div class="post-nav"><a href="/RxJava的简单使用/" class="pre">RxJava的简单使用</a><a href="/Zygote进程的启动过程/" class="next">Zygote进程的启动过程</a></div></div></div></div><div class="pure-u-1-4 hidden_mid_and_down"><div id="sidebar"><div class="widget"><div class="widget-title"><i class="fa fa-folder-o"> 分类</i></div><ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/Android/">Android</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/Gradle/">Gradle</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/ReactNative/">ReactNative</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/工作/">工作</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/插件化/">插件化</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/计算机/">计算机</a></li></ul></div></div></div><div class="pure-u-1 pure-u-md-3-4"><div id="footer">Copyright © 2017 <a href="/." rel="nofollow">chenlong's.</a> Powered by<a rel="nofollow" target="_blank" href="https://hexo.io"> Hexo.</a><a rel="nofollow" target="_blank" href="https://github.com/tufu9441/maupassant-hexo"> Theme</a> by<a rel="nofollow" target="_blank" href="https://github.com/pagecho"> Cho.</a></div></div></div><a id="rocket" href="#top" class="show"></a><script type="text/javascript" src="/js/totop.js?v=0.0.0" async></script><script type="text/javascript" src="//cdn.bootcss.com/fancybox/3.1.20/jquery.fancybox.min.js" async></script><script type="text/javascript" src="/js/fancybox.js?v=0.0.0" async></script><link rel="stylesheet" type="text/css" href="//cdn.bootcss.com/fancybox/3.1.20/jquery.fancybox.min.css"><script type="text/javascript" src="/js/codeblock-resizer.js?v=0.0.0"></script><script type="text/javascript" src="/js/smartresize.js?v=0.0.0"></script></div></body></html>
