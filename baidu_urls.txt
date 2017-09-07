@@ -1,1 +1,1 @@
-http://www.chenlongkk.com/ReactNative-Bridge的实现/
+http://www.chenlongkk.com/Android触摸事件分发机制/
